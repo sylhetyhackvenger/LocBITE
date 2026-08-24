@@ -1,0 +1,13 @@
+Pillow
+exifread
+pyzbar
+pytesseract
+cryptography
+pycryptodome
+requests
+numpy
+opencv-python-headless
+scikit-image
+matplotlib
+scipy
+pandas
