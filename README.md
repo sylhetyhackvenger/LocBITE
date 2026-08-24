@@ -3,6 +3,25 @@
   <img src="assets/1.png" alt="Banner 1" width="100%">
 </p>
 
+[![Security Research](https://img.shields.io/badge/Field-Cybersecurity-red?style=for-the-badge&logo=hackthebox)](#)
+[![Ethical Hacking](https://img.shields.io/badge/Purpose-Ethical%20Testing-blue?style=for-the-badge&logo=protonvpn)](#)
+[![Penetration Testing](https://img.shields.io/badge/Category-Pentesting-orange?style=for-the-badge&logo=kalilinux)](#)
+
+![GitHub Stars](https://img.shields.io/github/stars/sylhetyhackvenger/LocBITE?style=for-the-badge&logo=github)
+![GitHub Forks](https://img.shields.io/github/forks/sylhetyhackvenger/LocBITE?style=for-the-badge&logo=github)
+![GitHub Issues](https://img.shields.io/github/issues/sylhetyhackvenger/LocBITE?style=for-the-badge&logo=github)
+![GitHub License](https://img.shields.io/github/license/sylhetyhackvenger/LocBITE?style=for-the-badge&logo=opensourceinitiative)
+
+![Last Commit](https://img.shields.io/github/last-commit/sylhetyhackvenger/LocBITE?style=for-the-badge&logo=git)
+![Repo Size](https://img.shields.io/github/repo-size/sylhetyhackvenger/LocBITE?style=for-the-badge&logo=github)
+![Contributors](https://img.shields.io/github/contributors/sylhetyhackvenger/LocBITE?style=for-the-badge&logo=github)
+
+![Python](https://img.shields.io/badge/Python-Security%20Tool-yellow?style=for-the-badge&logo=python)
+![Linux](https://img.shields.io/badge/Linux-Compatible-black?style=for-the-badge&logo=linux)
+![Termux](https://img.shields.io/badge/Termux-Supported-green?style=for-the-badge&logo=android)
+
+[![Security Policy](https://img.shields.io/badge/Security-Responsible%20Disclosure-darkred?style=for-the-badge&logo=security)](SECURITY.md)
+[![Documentation](https://img.shields.io/badge/Docs-Available-blueviolet?style=for-the-badge&logo=readthedocs)](#)
 🔍 Overview
 
 LocBITE (Location, Binary, Image, Temporal, EXIF) is a comprehensive, professional-grade photo forensics and metadata extraction tool designed for cybersecurity professionals, digital forensics investigators, OSINT analysts, and security researchers. This powerful toolkit provides deep forensic analysis capabilities for image files, extracting critical intelligence that can be pivotal in investigations.
