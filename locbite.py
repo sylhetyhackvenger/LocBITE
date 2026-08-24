@@ -141,8 +141,6 @@ def print_banner():
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠁⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡀⠀⠀⠀⠀⠀⠀⠀⠀⣴⠀⠀⠀
 ⠀⠀⠀⢀⣿⣷⣾⣇⠀⠀⠀⠀⢀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣷⡀⠀⠀⠀⠀⠀⠀⣼⣿⠀⠀⠀
 ⠀⠀⠀⢸⣿⣿⣿⣿⣧⣠⡄⢠⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⡆⣰⣦⣤⠀⣼⣿⣿⡀⠀⠀
@@ -699,6 +697,46 @@ def analyze_jpeg_quality(image_path):
     except Exception as e:
         print_field("Error", f"{RED}{str(e)}{RESET}")
 
+def detect_file_type(data):
+    """Detect file type from binary data"""
+    signatures = {
+        b'\x89PNG': 'PNG Image',
+        b'\xff\xd8': 'JPEG Image',
+        b'GIF': 'GIF Image',
+        b'BM': 'BMP Image',
+        b'PK\x03\x04': 'ZIP Archive',
+        b'%PDF': 'PDF Document',
+        b'RIFF': 'WebP/RIFF',
+        b'II': 'TIFF Image',
+        b'MM': 'TIFF Image',
+        b'\x00\x00\x01\x00': 'ICO Icon',
+        b'{\\rtf': 'RTF Document',
+        b'<?xml': 'XML Document',
+        b'<html': 'HTML Document',
+        b'<!DOCTYPE': 'HTML Document',
+        b'#!': 'Script File',
+        b'JFIF': 'JPEG (JFIF)',
+        b'Exif': 'JPEG with EXIF',
+        b'ID3': 'MP3 Audio',
+        b'OggS': 'OGG Audio',
+        b'fLaC': 'FLAC Audio',
+        b'FORM': 'Audio File',
+        b'MP+': 'MP3+',
+        b'MDAT': 'QuickTime/MP4',
+        b'ftyp': 'MP4/QuickTime',
+        b'MOOV': 'MP4/QuickTime',
+        b'\x1f\x8b': 'GZIP Archive',
+        b'BZh': 'BZIP2 Archive',
+        b'7z': '7-ZIP Archive',
+        b'Rar!': 'RAR Archive',
+        b'PK': 'ZIP/Archive',
+    }
+    
+    for sig, name in signatures.items():
+        if data.startswith(sig):
+            return name
+    return None
+
 def analyze_file_append(image_path):
     print_section_header("FILE APPEND & HIDDEN DATA DETECTION")
     
@@ -706,53 +744,214 @@ def analyze_file_append(image_path):
         with open(image_path, 'rb') as f:
             data = f.read()
         
+        # Multiple EOF markers to check
         eof_markers = [
             (b'\xff\xd9', 'JPEG'),
             (b'IEND', 'PNG'),
-            (b'\x00\x3b', 'GIF'),
+            (b'\x00;', 'GIF'),
+            (b'\xff\xd8', 'JPEG (Alternative)'),
+            (b'<\\?xml', 'XML'),
+            (b'</html>', 'HTML'),
+            (b'</body>', 'HTML'),
+            (b'%PDF', 'PDF'),
+            (b'PK\x03\x04', 'ZIP'),
+            (b'\x1f\x8b', 'GZIP'),
+            (b'BZh', 'BZIP2'),
+            (b'7z\xbc\xaf', '7ZIP'),
+            (b'Rar!', 'RAR'),
             (b'\x00\x00\x00\x00', 'NULL Terminator'),
         ]
         
         appended_found = False
+        all_appends = []
         
+        # Check each marker
         for marker, name in eof_markers:
             if marker in data:
-                last_pos = data.rfind(marker)
-                if last_pos != -1:
-                    end_pos = last_pos + len(marker)
+                # Find all occurrences of this marker
+                start_pos = 0
+                while True:
+                    pos = data.find(marker, start_pos)
+                    if pos == -1:
+                        break
+                    
+                    end_pos = pos + len(marker)
                     if name == 'PNG':
-                        end_pos = last_pos + 12
+                        end_pos = pos + 12
+                    
                     if end_pos < len(data):
                         appended_size = len(data) - end_pos
-                        if appended_size > 0:
+                        if appended_size > 10:  # Minimum size to consider
                             appended_data = data[end_pos:]
-                            print_status(f"{style_critical(f'Found {appended_size:,} bytes of appended data after {name} at offset {end_pos}')}")
-                            print_field("Hex Preview", f"{appended_data[:50].hex()}...")
-                            
-                            try:
-                                text = appended_data.decode('utf-8', errors='ignore')
-                                if text.strip():
-                                    print_field("Readable Text", f"{text[:100]}...")
-                            except:
-                                pass
-                            
-                            if appended_data.startswith(b'\x89PNG'):
-                                print_field("Type", "PNG Image")
-                            elif appended_data.startswith(b'\xff\xd8'):
-                                print_field("Type", "JPEG Image")
-                            elif appended_data.startswith(b'PK'):
-                                print_field("Type", "ZIP Archive")
-                            elif appended_data.startswith(b'%PDF'):
-                                print_field("Type", "PDF Document")
-                            
+                            all_appends.append({
+                                'marker': name,
+                                'offset': pos,
+                                'end_pos': end_pos,
+                                'size': appended_size,
+                                'data': appended_data
+                            })
                             appended_found = True
-                            break
+                    start_pos = pos + 1
         
         if not appended_found:
             print_status(f"{style_success('No appended data found')}")
+            return False, None
+        
+        # Sort by offset to show in order
+        all_appends.sort(key=lambda x: x['offset'])
+        
+        # Show results for each appended data found
+        print_status(f"{style_critical(f'Found {len(all_appends)} appended data segments')}")
+        
+        for idx, append in enumerate(all_appends):
+            print(f"\n  {BOLD}{MAGENTA}─── Segment {idx+1}/{len(all_appends)} ───{RESET}")
+            print_field("Marker Type", append['marker'])
+            print_field("Offset", f"{append['offset']:,} bytes")
+            print_field("End Position", f"{append['end_pos']:,} bytes")
+            print_field("Appended Size", f"{append['size']:,} bytes")
+            print_field("Hex Preview", f"{append['data'][:50].hex()}...")
+            
+            appended_data = append['data']
+            
+            # Try to detect data type
+            file_type = detect_file_type(appended_data[:32])
+            if file_type:
+                print_field("Detected Type", file_type)
+            else:
+                # Check if it's text
+                try:
+                    text_preview = appended_data[:200].decode('utf-8', errors='ignore')
+                    if len(text_preview.strip()) > 0:
+                        print_field("Type", "Text/ASCII Data")
+                    else:
+                        print_field("Type", "Binary Data")
+                except:
+                    print_field("Type", "Binary Data")
+            
+            # UTF-8 text
+            try:
+                text = appended_data.decode('utf-8', errors='ignore')
+                if text.strip() and len(text) > 10:
+                    # Clean up the text for display
+                    clean_text = text[:150].replace('\n', ' ').replace('\r', ' ')
+                    print_field("UTF-8 Preview", f"{clean_text}...")
+            except:
+                pass
+            
+            # Latin-1 text
+            try:
+                latin1_text = appended_data.decode('latin-1', errors='ignore')
+                if latin1_text.strip() and len(latin1_text) > 10:
+                    clean_latin1 = latin1_text[:150].replace('\n', ' ').replace('\r', ' ')
+                    print_field("Latin-1 Preview", f"{clean_latin1}...")
+            except:
+                pass
+            
+            # Check for base64
+            try:
+                ascii_text = appended_data.decode('ascii', errors='ignore')
+                b64_matches = re.findall(r'[A-Za-z0-9+/]{30,}={0,2}', ascii_text)
+                if b64_matches:
+                    print_field("Base64 Found", f"{len(b64_matches)} segments")
+                    for b64 in b64_matches[:2]:
+                        try:
+                            decoded = base64.b64decode(b64)
+                            if len(decoded) > 10:
+                                print_field("  Base64 Decoded", f"{decoded[:80]}...")
+                        except:
+                            pass
+            except:
+                pass
+            
+            # Check for zlib compression
+            try:
+                decompressed = zlib.decompress(appended_data)
+                if len(decompressed) > 0:
+                    print_field("zlib Decompressed", f"{len(decompressed):,} bytes")
+                    try:
+                        text = decompressed.decode('utf-8', errors='ignore')
+                        if text.strip():
+                            print_field("  Decompressed Text", f"{text[:100]}...")
+                    except:
+                        pass
+            except:
+                pass
+            
+            # Check for nested files
+            nested_types = {
+                b'\x89PNG': 'PNG Image',
+                b'\xff\xd8': 'JPEG Image',
+                b'GIF': 'GIF Image',
+                b'PK\x03\x04': 'ZIP Archive',
+                b'%PDF': 'PDF Document',
+                b'\x1f\x8b': 'GZIP Archive',
+            }
+            nested_found = False
+            for sig, name in nested_types.items():
+                if appended_data.startswith(sig):
+                    print_field("Nested File", f"{name} detected!")
+                    nested_found = True
+                    break
+            
+            if not nested_found and len(appended_data) > 1000:
+                # Check for common file signatures anywhere in the appended data
+                for sig, name in nested_types.items():
+                    if sig in appended_data[:500]:
+                        print_field("Nested File", f"{name} found inside!")
+                        nested_found = True
+                        break
+            
+            # Check for strings in the appended data
+            string_pattern = re.compile(rb'[ -~]{10,}')
+            strings = string_pattern.findall(appended_data[:500])
+            if strings:
+                print_field("Strings Found", f"{len(strings)}")
+                for s in strings[:3]:
+                    try:
+                        text = s.decode('utf-8', errors='ignore')
+                        if len(text.strip()) > 5:
+                            print_field("  String", f"{text[:80]}...")
+                    except:
+                        pass
+            
+            # Check for URLs
+            url_pattern = re.compile(rb'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
+            urls = url_pattern.findall(appended_data)
+            if urls:
+                print_field("URLs Found", f"{len(urls)}")
+                for url in urls[:3]:
+                    try:
+                        print_field("  URL", url.decode('utf-8', errors='ignore'))
+                    except:
+                        pass
+            
+            # Check for emails
+            email_pattern = re.compile(rb'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+            emails = email_pattern.findall(appended_data)
+            if emails:
+                print_field("Emails Found", f"{len(emails)}")
+                for email in emails[:2]:
+                    try:
+                        print_field("  Email", email.decode('utf-8', errors='ignore'))
+                    except:
+                        pass
+            
+            # Check for phone numbers
+            phone_pattern = re.compile(rb'\+?[0-9]{10,15}')
+            phones = phone_pattern.findall(appended_data)
+            if phones:
+                print_field("Phone Numbers", f"{len(phones)}")
+                for phone in phones[:2]:
+                    try:
+                        print_field("  Phone", phone.decode('utf-8', errors='ignore'))
+                    except:
+                        pass
+        
+        return True, all_appends
         
     except Exception as e:
         print_field("Error", f"{RED}{str(e)}{RESET}")
+        return False, None
 
 def extract_hidden_data(image_path):
     print_section_header("ADVANCED STEGANOGRAPHY & HIDDEN DATA EXTRACTION")
@@ -762,7 +961,9 @@ def extract_hidden_data(image_path):
             data = f.read()
         
         found = []
+        hidden_results = []
         
+        # Check EXIF metadata
         try:
             img = Image.open(image_path)
             exif = img._getexif()
@@ -775,16 +976,19 @@ def extract_hidden_data(image_path):
                                 decoded = value.decode('utf-8', errors='ignore')
                                 if len(decoded) > 5:
                                     found.append(f"📝 {tag_name}: {decoded[:150]}...")
+                                    hidden_results.append({'type': 'EXIF', 'name': tag_name, 'data': decoded[:150]})
                             except:
                                 pass
                         elif isinstance(value, str) and len(value) > 5:
                             found.append(f"📝 {tag_name}: {value[:150]}...")
+                            hidden_results.append({'type': 'EXIF', 'name': tag_name, 'data': value[:150]})
         except:
             pass
         
+        # Base64 detection
         b64_pattern = re.compile(r'[A-Za-z0-9+/]{30,}={0,2}')
         b64_matches = b64_pattern.findall(data.decode('latin-1', errors='ignore'))
-        for match in b64_matches[:3]:
+        for match in b64_matches[:5]:
             try:
                 decoded = base64.b64decode(match)
                 if len(decoded) > 30:
@@ -792,37 +996,126 @@ def extract_hidden_data(image_path):
                         text = decoded.decode('utf-8', errors='ignore')
                         if len(text.strip()) > 10:
                             found.append(f"🔑 Base64 encoded: {text[:80]}...")
+                            hidden_results.append({'type': 'Base64', 'data': text[:80]})
                             break
                     except:
                         pass
             except:
                 pass
         
+        # XOR detection
         xor_pattern = re.compile(rb'[\x00-\x08\x0b\x0c\x0e-\x1f]{20,}')
         xor_matches = xor_pattern.findall(data)
-        for match in xor_matches:
+        for match in xor_matches[:3]:
             for key in range(256):
                 try:
-                    decoded = bytes([b ^ key for b in match])
+                    decoded = bytes([b ^ key for b in match[:100]])
                     if decoded.isprintable() and len(decoded) > 20:
                         text = decoded.decode('utf-8', errors='ignore')
                         if len(text.strip()) > 5:
                             found.append(f"🔐 XOR encrypted (Key: {key}): {text[:80]}...")
+                            hidden_results.append({'type': 'XOR', 'key': key, 'data': text[:80]})
                             break
                 except:
                     pass
-            if found and 'XOR' in found[-1]:
+            if hidden_results and hidden_results[-1].get('type') == 'XOR':
                 break
+        
+        # Steganography detection - LSB analysis
+        try:
+            img = Image.open(image_path)
+            if img.mode == 'RGB' or img.mode == 'RGBA':
+                pixels = list(img.getdata())[:1000]
+                lsb_bits = []
+                for pixel in pixels:
+                    if isinstance(pixel, tuple):
+                        for channel in pixel[:3]:
+                            lsb_bits.append(channel & 1)
+                
+                if len(lsb_bits) > 100:
+                    # Check for patterns in LSB
+                    bit_string = ''.join(str(b) for b in lsb_bits[:100])
+                    # Check for ASCII characters
+                    byte_chunks = [bit_string[i:i+8] for i in range(0, len(bit_string)-7, 8)]
+                    ascii_chars = []
+                    for chunk in byte_chunks:
+                        try:
+                            char = chr(int(chunk, 2))
+                            if 32 <= ord(char) <= 126:
+                                ascii_chars.append(char)
+                        except:
+                            pass
+                    
+                    if len(ascii_chars) > 20:
+                        hidden_text = ''.join(ascii_chars)
+                        found.append(f"🔍 LSB Steganography detected: {hidden_text[:80]}...")
+                        hidden_results.append({'type': 'LSB', 'data': hidden_text[:80]})
+        except:
+            pass
+        
+        # Check for strings in file
+        string_pattern = re.compile(rb'[ -~]{10,}')
+        strings = string_pattern.findall(data)
+        for s in strings[:10]:
+            try:
+                text = s.decode('utf-8', errors='ignore')
+                if len(text.strip()) > 10 and not text.startswith('http'):
+                    found.append(f"📄 Found string: {text[:80]}...")
+                    hidden_results.append({'type': 'String', 'data': text[:80]})
+            except:
+                pass
+        
+        # Check for URLs
+        url_pattern = re.compile(rb'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
+        urls = url_pattern.findall(data)
+        for url in urls[:5]:
+            try:
+                text = url.decode('utf-8', errors='ignore')
+                found.append(f"🌐 URL found: {text}")
+                hidden_results.append({'type': 'URL', 'data': text})
+            except:
+                pass
+        
+        # Check for email addresses
+        email_pattern = re.compile(rb'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+        emails = email_pattern.findall(data)
+        for email in emails[:5]:
+            try:
+                text = email.decode('utf-8', errors='ignore')
+                found.append(f"✉️ Email found: {text}")
+                hidden_results.append({'type': 'Email', 'data': text})
+            except:
+                pass
+        
+        # Check for phone numbers
+        phone_pattern = re.compile(rb'\+?[0-9]{10,15}')
+        phones = phone_pattern.findall(data)
+        for phone in phones[:5]:
+            try:
+                text = phone.decode('utf-8', errors='ignore')
+                found.append(f"📞 Phone: {text}")
+                hidden_results.append({'type': 'Phone', 'data': text})
+            except:
+                pass
         
         if found:
             print_status(f"{style_high(f'Found {len(found)} hidden data artifacts')}")
-            for item in found[:10]:
+            for item in found[:15]:
                 print(f"  {BOLD}{CYAN}├─{RESET} {WHITE}{item}{RESET}")
+            
+            # Summary
+            print(f"\n  {BOLD}{YELLOW}Hidden Data Summary:{RESET}")
+            type_counts = Counter([item['type'] for item in hidden_results])
+            for typ, count in type_counts.items():
+                print(f"  {BOLD}{GREEN}├─{RESET} {WHITE}{typ}: {count} items{RESET}")
         else:
             print_status(f"{style_warning('No hidden data detected')}")
-            
+        
+        return hidden_results
+        
     except Exception as e:
         print_field("Error", f"{RED}{str(e)}{RESET}")
+        return []
 
 def analyze_encryption(image_path):
     print_section_header("ADVANCED ENCRYPTION DETECTION")
@@ -845,33 +1138,46 @@ def analyze_encryption(image_path):
             (b'AES', 'AES Encryption Marker'),
             (b'DES', 'DES/3DES Encryption Marker'),
             (b'RSA', 'RSA Encryption Marker'),
+            (b'BEGIN PGP', 'PGP Message'),
+            (b'BEGIN RSA', 'RSA Private Key'),
+            (b'ENCRYPTED', 'Encrypted Content'),
+            (b'----BEGIN', 'PGP/PKI Content'),
+            (b'encrypted', 'Possible Encryption'),
         ]
         
         for sig, name in crypt_patterns:
             if sig in data:
                 encryption.append(f"🔐 {name} detected")
         
+        # Calculate entropy - FIXED
         entropy = 0
         if len(data) > 1000:
             freq = {}
-            for byte in data[:10000]:
+            sample = data[:10000]
+            for byte in sample:
                 freq[byte] = freq.get(byte, 0) + 1
-            for f in freq.values():
-                p = f / len(data[:10000])
+            sample_len = len(sample)
+            import math
+            for count in freq.values():
+                p = count / sample_len
                 if p > 0:
-                    entropy -= p * (p.bit_length() - 1)
+                    entropy -= p * math.log2(p)
             
             if entropy > 7.8:
                 encryption.append(f"⚡ Very High entropy: {entropy:.3f} (Strong encryption)")
             elif entropy > 7.5:
                 encryption.append(f"⚡ High entropy: {entropy:.3f} (Possible encryption)")
+            elif entropy > 7.0:
+                encryption.append(f"⚡ Medium entropy: {entropy:.3f} (May be compressed or encrypted)")
+            else:
+                encryption.append(f"📊 Normal entropy: {entropy:.3f} (Likely plaintext)")
         
         if encryption:
             print_status(f"{style_critical(f'Detected {len(encryption)} encryption signatures')}")
             for item in encryption:
                 print(f"  {BOLD}{RED}├─{RESET} {WHITE}{item}{RESET}")
         else:
-            print_status(f"{style_warning('No encryption detected')}")
+            print_status(f"{style_success('No encryption detected')}")
             
     except Exception as e:
         print_field("Error", f"{RED}{str(e)}{RESET}")
@@ -885,37 +1191,80 @@ def analyze_forensic_artifacts(image_path):
         
         artifacts = []
         
+        # Editing software
         if b'Edited' in data or b'edited' in data:
-            artifacts.append("Image has been edited")
+            artifacts.append("📝 Image has been edited")
         
         if b'Photoshop' in data or b'Lightroom' in data:
-            artifacts.append("Adobe Creative Suite detected")
+            artifacts.append("🎨 Adobe Creative Suite detected")
         
         if b'GIMP' in data:
-            artifacts.append("GIMP editing detected")
+            artifacts.append("🎨 GIMP editing detected")
         
         if b'Canon' in data:
-            artifacts.append("Canon camera detected")
+            artifacts.append("📷 Canon camera detected")
         if b'NIKON' in data:
-            artifacts.append("Nikon camera detected")
+            artifacts.append("📷 Nikon camera detected")
         if b'SONY' in data:
-            artifacts.append("Sony camera detected")
+            artifacts.append("📷 Sony camera detected")
         if b'FUJIFILM' in data:
-            artifacts.append("Fujifilm camera detected")
+            artifacts.append("📷 Fujifilm camera detected")
+        if b'Panasonic' in data:
+            artifacts.append("📷 Panasonic camera detected")
+        if b'OLYMPUS' in data:
+            artifacts.append("📷 Olympus camera detected")
         
         if b'AI' in data or b'Generated' in data:
-            artifacts.append("AI/ML generated content detected")
+            artifacts.append("🤖 AI/ML generated content detected")
         
         if b'Deepfake' in data:
-            artifacts.append("Deepfake marker detected")
+            artifacts.append("⚠️ Deepfake marker detected")
         
         if b'Watermark' in data or b'watermark' in data:
-            artifacts.append("Watermark detected")
+            artifacts.append("©️ Watermark detected")
         
         if b'Copyright' in data or b'copyright' in data:
-            artifacts.append("Copyright information present")
+            artifacts.append("©️ Copyright information present")
+        
+        if b'Camera' in data:
+            artifacts.append("📷 Camera metadata present")
+        
+        if b'Lens' in data:
+            artifacts.append("🔭 Lens information present")
+        
+        if b'Flash' in data:
+            artifacts.append("💡 Flash information present")
+        
+        if b'ISO' in data:
+            artifacts.append("📊 ISO information present")
+        
+        if b'Exposure' in data:
+            artifacts.append("⏱️ Exposure information present")
+        
+        # Social media traces
+        if b'Instagram' in data:
+            artifacts.append("📱 Instagram metadata detected")
+        if b'Facebook' in data:
+            artifacts.append("📱 Facebook metadata detected")
+        if b'Twitter' in data:
+            artifacts.append("🐦 Twitter metadata detected")
+        if b'WhatsApp' in data:
+            artifacts.append("💬 WhatsApp metadata detected")
+        if b'Telegram' in data:
+            artifacts.append("✈️ Telegram metadata detected")
+        if b'Snapchat' in data:
+            artifacts.append("👻 Snapchat metadata detected")
+        
+        # Compression artifacts
+        if b'JFIF' in data:
+            artifacts.append("📦 JPEG JFIF format")
+        if b'Exif' in data:
+            artifacts.append("📋 EXIF metadata present")
+        if b'ICC_PROFILE' in data:
+            artifacts.append("🎨 ICC Color Profile detected")
         
         if artifacts:
+            print_field("Total Artifacts", f"{len(artifacts)}")
             for artifact in artifacts:
                 print_field("Detection", artifact)
         else:
@@ -1246,6 +1595,111 @@ def find_image(image_name):
         return image_name
     return None
 
+def batch_scan_directory():
+    print_section_header("BATCH FILE APPEND & HIDDEN DATA SCAN")
+    
+    print(f"\n{BOLD}{WHITE}This will scan ALL image files in a directory for:{RESET}")
+    print(f"  {CYAN}• Appended data after EOF markers (GIF, JPEG, PNG, NULL){RESET}")
+    print(f"  {CYAN}• Hidden text and binary data{RESET}")
+    print(f"  {CYAN}• Nested file detection (ZIP, PDF, Images){RESET}")
+    print(f"  {CYAN}• Device information extraction{RESET}")
+    
+    dir_path = input(f"\n{BOLD}{GREEN}➔ Enter directory path to scan: {RESET}").strip()
+    
+    if not dir_path:
+        print(f"\n{style_warning('No directory provided')}")
+        input(f"\n{YELLOW}Press ENTER to continue...{RESET}")
+        return
+    
+    if not os.path.exists(dir_path):
+        print(f"\n{style_error(f'Directory not found: {dir_path}')}")
+        input(f"\n{YELLOW}Press ENTER to continue...{RESET}")
+        return
+    
+    if not os.path.isdir(dir_path):
+        print(f"\n{style_error('Path is not a directory')}")
+        input(f"\n{YELLOW}Press ENTER to continue...{RESET}")
+        return
+    
+    image_exts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.tif', '.webp', '.ico', '.cur']
+    found_files = []
+    
+    print(f"\n{style_info('Scanning directory...')}")
+    
+    for root, dirs, files in os.walk(dir_path):
+        for file in files:
+            if any(file.lower().endswith(ext) for ext in image_exts):
+                full_path = os.path.join(root, file)
+                found_files.append(full_path)
+    
+    if not found_files:
+        print_status(f"{style_warning('No image files found in directory')}")
+        input(f"\n{YELLOW}Press ENTER to continue...{RESET}")
+        return
+    
+    print(f"\n{style_success(f'Found {len(found_files)} image files')}")
+    print(f"\n{BOLD}{YELLOW}Limit: Scanning first 100 files to avoid overload{RESET}")
+    
+    max_files = min(100, len(found_files))
+    total_detections = 0
+    total_size = 0
+    appended_count = 0
+    hidden_data_count = 0
+    
+    print(f"\n{BOLD}{BLUE}┌{'═' * 68}┐{RESET}")
+    print(f"{BOLD}{BLUE}│{RESET} {BOLD}{WHITE}{'📊 BATCH SCAN RESULTS':^66}{RESET} {BOLD}{BLUE}│{RESET}")
+    print(f"{BOLD}{BLUE}└{'═' * 68}┘{RESET}")
+    
+    for i, file_path in enumerate(found_files[:max_files]):
+        print(f"\n{BOLD}{CYAN}▶ [{i+1}/{max_files}] Analyzing: {os.path.basename(file_path)}{RESET}")
+        print(f"  {BOLD}{DIM}Path: {file_path}{RESET}")
+        
+        appended_found, appended_data = analyze_file_append(file_path)
+        hidden_data = extract_hidden_data(file_path)
+        
+        if appended_found:
+            appended_count += 1
+        if hidden_data:
+            hidden_data_count += 1
+        
+        try:
+            file_size = os.path.getsize(file_path)
+            total_size += file_size
+        except:
+            pass
+        
+        total_detections += 1
+        
+        if i < max_files - 1:
+            print(f"\n  {BOLD}{DIM}{'─' * 68}{RESET}")
+    
+    print(f"\n{BOLD}{BLUE}┌{'═' * 68}┐{RESET}")
+    print(f"{BOLD}{BLUE}│{RESET} {BOLD}{GREEN}📊 BATCH SCAN SUMMARY{' ' * 51}{BOLD}{BLUE}│{RESET}")
+    print(f"{BOLD}{BLUE}└{'═' * 68}┘{RESET}")
+    print_field("Total Files Scanned", f"{total_detections}")
+    print_field("Total Files Found", f"{len(found_files)}")
+    print_field("Total Data Scanned", human_readable_size(total_size))
+    print_field("Scan Limit", f"{max_files} files")
+    print_field("Files with Appended Data", f"{appended_count}")
+    print_field("Files with Hidden Data", f"{hidden_data_count}")
+    
+    if appended_count > 0:
+        print_status(f"{style_high(f'{appended_count} files contain appended data!')}")
+    else:
+        print_status(f"{style_success('No appended data found in scanned files')}")
+    
+    if hidden_data_count > 0:
+        print_status(f"{style_high(f'{hidden_data_count} files contain hidden data!')}")
+    else:
+        print_status(f"{style_success('No hidden data found in scanned files')}")
+    
+    if len(found_files) > max_files:
+        print_status(f"{style_warning(f'{len(found_files) - max_files} more files not scanned (limit reached)')}")
+    
+    print(f"\n{style_success('Batch scan complete!')}")
+    print(f"\n{YELLOW}Press ENTER to continue...{RESET}")
+    input()
+
 def main():
     clear_screen()
     lock_and_redirect()
@@ -1260,10 +1714,11 @@ def main():
         print(f"{BOLD}{BLUE}└{'═' * 68}┘{RESET}")
         print(f"""
 {BOLD}{GREEN}Options:{RESET}
-  {BOLD}{BLUE}[{RESET}{BOLD}{WHITE}1{BOLD}{BLUE}]{RESET} {BOLD}{CYAN}Full Forensic Scan (All Modules){RESET}
+  {BOLD}{BLUE}[{RESET}{BOLD}{WHITE}1{BOLD}{BLUE}]{RESET} {BOLD}{CYAN}Full Forensic Scan (Single File){RESET}
   {BOLD}{BLUE}[{RESET}{BOLD}{WHITE}2{BOLD}{BLUE}]{RESET} {BOLD}{MAGENTA}Steganography & Hidden Data Only{RESET}
   {BOLD}{BLUE}[{RESET}{BOLD}{WHITE}3{BOLD}{BLUE}]{RESET} {BOLD}{PURPLE}QR/OCR/ELA Analysis Only{RESET}
-  {BOLD}{BLUE}[{RESET}{BOLD}{WHITE}4{BOLD}{BLUE}]{RESET} {BOLD}{RED}Exit{RESET}
+  {BOLD}{BLUE}[{RESET}{BOLD}{WHITE}4{BOLD}{BLUE}]{RESET} {BOLD}{RED}Batch File Append & Hidden Data Scan (Directory){RESET}
+  {BOLD}{BLUE}[{RESET}{BOLD}{WHITE}5{BOLD}{BLUE}]{RESET} {BOLD}{RED}Exit{RESET}
         """)
         print(f"{BOLD}{BLUE}┌{'─' * 68}┐{RESET}")
         print(f"{BOLD}{BLUE}│{RESET} {BOLD}{WHITE}💡 Features:{' ' * 57}{BOLD}{BLUE}│{RESET}")
@@ -1277,9 +1732,10 @@ def main():
         print(f"{BOLD}{BLUE}│{RESET} {CYAN}• WhatsApp Database Scan{' ' * 42}{BOLD}{BLUE}│{RESET}")
         print(f"{BOLD}{BLUE}│{RESET} {CYAN}• Social Media Resolution Detection{' ' * 28}{BOLD}{BLUE}│{RESET}")
         print(f"{BOLD}{BLUE}│{RESET} {CYAN}• Device/Network/OS Information{' ' * 30}{BOLD}{BLUE}│{RESET}")
+        print(f"{BOLD}{BLUE}│{RESET} {CYAN}• BATCH Directory Scan (NEW){' ' * 39}{BOLD}{BLUE}│{RESET}")
         print(f"{BOLD}{BLUE}└{'─' * 68}┘{RESET}")
         
-        choice = input(f"\n{BOLD}{GREEN}➔ Select (1-4): {RESET}").strip()
+        choice = input(f"\n{BOLD}{GREEN}➔ Select (1-5): {RESET}").strip()
         
         if choice in ["1", "2", "3"]:
             clear_screen()
@@ -1349,6 +1805,11 @@ def main():
                 input()
         
         elif choice == "4":
+            clear_screen()
+            print_banner()
+            batch_scan_directory()
+        
+        elif choice == "5":
             clear_screen()
             print_banner()
             print(f"""
