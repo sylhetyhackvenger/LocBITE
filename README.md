@@ -1,5 +1,7 @@
-LocBITE - Advanced Photo Forensics Toolkit
-
+# LocBITE - Advanced Photo Forensics Toolkit
+<p align="center">
+  <img src="assets/1.png" alt="Banner 1" width="100%">
+</p>
 
 🔍 Overview
 
@@ -162,6 +164,10 @@ Learning Curve Advanced features require forensics knowledge
 False Positives Some detections may be inaccurate
 
 🛠️ Installation
+
+<p align="center">
+  <img src="assets/2.png" alt="Banner 2" width="100%">
+</p>
 
 🔧 Linux/Unix
 
